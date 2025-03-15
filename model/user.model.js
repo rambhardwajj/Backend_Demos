@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
-// zod bhi use kr 
+import bcrypt from "bcryptjs";
+// zod bhi use kr skte hain fo input validation
+
 
 const userSchema = Schema({
     name:{
@@ -19,16 +21,30 @@ const userSchema = Schema({
         type: String,
         enum: ['admin', 'user']
     },
+    isVerified:{
+        type: Boolean,
+        default: false 
+    },
     verficationToken:{
         type:String
     },
-    resetPasswordToke:{
+    resetPasswordToken:{
         type : String
     },
-    resetPasswordExpirt:{
-        type: String
+    resetPasswordExpiry:{
+        type: Date
     }
 },{timestamps: true})
+
+
+// try with out 
+userSchema.pre('save',  async function(next){
+    if( this.isModified('password')){
+        this.password = await bcrypt.hash(this.password,10)
+    }
+    next()
+})
+
 
 const User = await mongoose.model("User", userSchema)
 
