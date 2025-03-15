@@ -5,7 +5,6 @@ import dotenv from 'dotenv'
 import bcrypt from 'bcryptjs'
 import jwt from "jsonwebtoken"
 
-
 dotenv.config()
 
 const register = async(req , res)=>{
@@ -55,7 +54,7 @@ const register = async(req , res)=>{
             from:process.env.MAILTRAP_SENDERMAIL,
             to: user.email,
             subject: "Verify your email", 
-            text: `Please click on the ${process.env.BASE_URI}/api/v1/users/verify/${token}`, 
+            text: `Please click on the ${process.env.BASE_URI}/api/v1/users/verify-user/${token}`, 
           }
 
           console.log(mailOptions)
@@ -130,6 +129,9 @@ const login = async(req, res) =>{
 
         const isMatched = await bcrypt.compare( password, user.password)
 
+        if( !user.isVerified ){
+            return res.status(400).json({message: "user not verified"})
+        }
         if( !isMatched ){
             return res.status(400).json({message: "invalid cred", isMatched})
         }
@@ -227,7 +229,7 @@ const forgotPassword = async(req, res) =>{
 
    } catch (error) {
         console.log(error);
-        res.status(500).json({message: " Something went wrong in forgot password code "})
+        res.status(500).json({message: " Something went wrong in forgot password BE code "})
    }
 
 }
@@ -292,5 +294,28 @@ const changePassword = async(req, res) =>{
     }
 }
 
-export {register, verifyUser, login, logout, forgotPassword, resetPassword, changePassword}
+const getUserProfile = async(req,res) =>{
+    try {
+        const user = await User.findById(req.user.id).select('-password')
+        if( !user){
+            return res.status(400).json({
+                success:false,
+                message: "User djoe found"
+            })
+        }
+        console.log(user)
+        return res.status(200).json({
+            success: true,
+            user,
+            message:"user dedo"
+        })
+    } catch (error) {
+        console.log(error, "in get me wala")
+        return res.status(400).json({
+            success:false,
+            message: "error in getUser "
+        })
+    }
+}
 
+export {register, verifyUser, login, logout, forgotPassword, resetPassword, changePassword, getUserProfile}
