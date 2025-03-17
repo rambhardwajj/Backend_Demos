@@ -7,6 +7,23 @@ import jwt from "jsonwebtoken"
 
 dotenv.config()
 
+async function generateAccessAndRefreshToken( userId ){
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.genAccessToken()
+        const refreshToken = user.genRefreshToken();
+
+        user.refreshToken = refreshToken
+        await user.save()
+        // console.log("tokens", refreshToken, accessToken )
+        return {refreshToken, accessToken, user};
+    } catch (error) {
+        res.status(400).json({message: "refresh token error"})
+    }
+    
+}
+
+
 const register = async(req , res)=>{
     // get data
     // validation
@@ -121,7 +138,6 @@ const login = async(req, res) =>{
         return res.status(400).json({message: "email and password are required"})
     }
 
-    
     try {
         const user = await User.findOne({email});
 
@@ -136,23 +152,18 @@ const login = async(req, res) =>{
             return res.status(400).json({message: "invalid cred", isMatched})
         }
 
-        const token = jwt.sign(
-            {id:user._id},
-            process.env.JWT_SECRET,
-            {
-                expiresIn:process.env.JWT_EXPIRY
-            }
-        )
-
-        console.log("token", token)
-        
+        console.log(user)
+        const {refreshToken, accessToken} = await generateAccessAndRefreshToken(user._id)
+        console.log('login tokens', refreshToken, accessToken)
         const cookieOptions = {
             httpOnly : true,
             secure: true,
             maxAge: 24 * 60* 60* 1000
         }
+
         res
-        .cookie('token', token, cookieOptions)
+        .cookie('refreshToken', refreshToken, cookieOptions)
+        .cookie('accessToken', accessToken, cookieOptions)
         .status(200)
         .json({
             success: true,
@@ -166,12 +177,28 @@ const login = async(req, res) =>{
 }
 
 const logout = async(req, res)=>{
+    const user = req.user
+    if( !user ){
+        return res.status(400).json({success:false, message: 'User not exists '})
+    }
+    
+    const userId = user.id
+
+    const userInDB = await User.findById(userId);
+
+    if( !userInDB){
+        return res.status(400).json({message: "userInDB undef hai"})
+    }
+
+    userInDB.refreshToken = undefined;
+    await userInDB.save()
+
     // delete cookie
     try {
-        if(!req.headers.cookie){
-            return res.status(400).json({success:false, message: 'not logged in '})
+        if(!req.cookies?.refreshToken ||  !req.cookies?.accessToken){
+            return res.status(400).json({success:false, message: 'User not logged in'})
         }
-        res.clearCookie('token').status(200).json({
+        res.clearCookie('accessToken').clearCookie('refreshToken').status(200).json({
             success: true,
             message: "User logged out successfully"
         })
@@ -181,6 +208,82 @@ const logout = async(req, res)=>{
     }
 
 }
+
+const getNewRefreshToken = async(req, res)=>{
+    try {
+        const refToken = req.cookies.refreshToken;
+        if( !refToken){
+            return res.status(401).json({success: false, message: "refresh token missing bro"})
+        }
+
+        const decoded = jwt.verify(refToken, process.env.JWT_REFRESH_SECRET)
+        const userId = decoded.id;        
+        const user = await User.findById(userId)
+
+        if(!user){
+            return res.status(400).json({
+                success: false, message: 'user not found'
+            })
+        }
+        
+        const { refreshToken, accessToken} = generateAccessAndRefreshToken(userId)
+
+        const cookieOptions = {
+            httpOnly: true, secure: true, maxAge: 24*60*60*1000
+        }
+
+        res.cookie("refreshToken", refreshToken, cookieOptions )
+        res.cookie("accessToken", accessToken, cookieOptions)
+
+        res.status(200).json({
+            success: true, 
+            accessToken, 
+            message: "new access token generated"
+        })
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, message: "Failed to refresh token", error: error.message });
+    }
+}
+
+const refreshAccessToken = async(req, res)=>{
+    // user ki details nikalenge decoded se ( middleware )
+    // user ki cookie  access token 
+    const currToken = req.cookies.refreshToken
+    try {
+        const decoded = jwt.verify(currToken, process.env.JWT_REFRESH_SECRET)
+        const userId = decoded.id
+
+        const user = await User.findById(userId)
+
+        if( user.refreshToken !== currToken){
+            console.log("Comparing ", user.refreshAccessToken, currToken)
+            return res.status(400).json({message: "session expired"})
+        }
+        
+        const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
+
+        user.refreshAccessToken  = refreshToken;
+        await user.save();
+
+        const cookieOptions = {
+            httpOnly: true, secure: true, maxAge: 24*60*60*1000
+        }
+
+        res.cookie("refreshToken", refreshToken, cookieOptions )
+        res.cookie("accessToken", accessToken, cookieOptions)
+
+        res.status(200).json({
+            success: true, 
+            accessToken, 
+            message: "new refresh token generated"
+        })
+
+    } catch (error) {
+        return res.status(500).json({message: "error in refreshAccessToken"})
+    }
+}
+
 
 const forgotPassword = async(req, res) =>{
     // forgot -> reset -> change pass
@@ -318,4 +421,4 @@ const getUserProfile = async(req,res) =>{
     }
 }
 
-export {register, verifyUser, login, logout, forgotPassword, resetPassword, changePassword, getUserProfile}
+export {register, verifyUser, login, logout, forgotPassword, resetPassword, changePassword, getUserProfile, getNewRefreshToken, refreshAccessToken}

@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken"
 // zod bhi use kr skte hain fo input validation
 
 
@@ -33,7 +34,11 @@ const userSchema = Schema({
     },
     resetPasswordExpiry:{
         type: Date
+    },
+    refreshToken: {
+        type : String
     }
+
 },{timestamps: true})
 
 
@@ -44,6 +49,29 @@ userSchema.pre('save',  async function(next){
     }
     next()
 })
+
+
+userSchema.methods.genAccessToken = function (){
+    const accessToken = jwt.sign(
+        { id: this._id, 
+        }, 
+        process.env.JWT_SECRET, 
+        {
+            expiresIn:process.env.JWT_EXPIRY
+        }    
+    )
+    return accessToken; 
+}
+
+userSchema.methods.genRefreshToken = function (){
+    const refreshToken = jwt.sign(
+        { id: this._id},
+        process.env.JWT_REFRESH_SECRET,
+        {expiresIn: '24h'}
+    )
+    return refreshToken;
+}
+
 
 
 const User = await mongoose.model("User", userSchema)
