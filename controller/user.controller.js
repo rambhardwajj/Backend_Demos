@@ -9,11 +9,12 @@ dotenv.config()
 
 async function generateAccessAndRefreshToken( userId ){
     try {
-        const user = await User.findById(userId)
+        // more secure 
+        const user = await User.findById(userId) // extra db call
         const accessToken = user.genAccessToken()
         const refreshToken = user.genRefreshToken();
 
-        user.refreshToken = refreshToken
+        user.refreshToken = refreshToken 
         await user.save()
         // console.log("tokens", refreshToken, accessToken )
         return {refreshToken, accessToken, user};
@@ -22,7 +23,6 @@ async function generateAccessAndRefreshToken( userId ){
     }
     
 }
-
 
 const register = async(req , res)=>{
     // get data
@@ -68,18 +68,27 @@ const register = async(req , res)=>{
           });
       
           const mailOptions = {
-            from:process.env.MAILTRAP_SENDERMAIL,
+            from: process.env.MAILTRAP_SENDERMAIL,
             to: user.email,
-            subject: "Verify your email", 
-            text: `Please click on the ${process.env.BASE_URI}/api/v1/users/verify-user/${token}`, 
-          }
-
+            subject: "Verify Your Email",
+            html: `
+              <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px; border: 1px solid #ddd; border-radius: 10px; max-width: 500px; margin: auto; background-color: #f9f9f9;">
+                <h2 style="color: #333;">Verify Your Email</h2>
+                <p style="color: #555;">Please click the button below to verify your email and access your account.</p>
+                <a href="http://localhost:5173/verify/${token}" 
+                   style="display: inline-block; padding: 12px 24px; color: white; background-color: #28a745; 
+                          text-decoration: none; font-size: 16px; border-radius: 5px; margin-top: 10px;">
+                  Go to Login
+              </div>
+            `
+          }; 
+{/* <a href="${process.env.BASE_URI}/api/v1/users/verify-user/${token}"  */}
           console.log(mailOptions)
       
           await transporter.sendMail(mailOptions)
 
           return res.status(200).json({
-            status: true,
+            success: true,
             message: "User created succesfully"
           })
     } catch (error) {
@@ -140,11 +149,8 @@ const login = async(req, res) =>{
 
     try {
         const user = await User.findOne({email});
-
         if( !user) return res.status(400).json({message: "Invalid email or password", success: false})
-
         const isMatched = await bcrypt.compare( password, user.password)
-
         if( !user.isVerified ){
             return res.status(400).json({message: "user not verified"})
         }
@@ -283,7 +289,6 @@ const refreshAccessToken = async(req, res)=>{
         return res.status(500).json({message: "error in refreshAccessToken"})
     }
 }
-
 
 const forgotPassword = async(req, res) =>{
     // forgot -> reset -> change pass
