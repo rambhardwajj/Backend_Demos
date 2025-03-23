@@ -221,7 +221,6 @@ const getNewRefreshToken = async(req, res)=>{
         if( !refToken){
             return res.status(401).json({success: false, message: "refresh token missing bro"})
         }
-
         const decoded = jwt.verify(refToken, process.env.JWT_REFRESH_SECRET)
         const userId = decoded.id;        
         const user = await User.findById(userId)
@@ -233,11 +232,9 @@ const getNewRefreshToken = async(req, res)=>{
         }
         
         const { refreshToken, accessToken} = generateAccessAndRefreshToken(userId)
-
         const cookieOptions = {
             httpOnly: true, secure: true, maxAge: 24*60*60*1000
         }
-
         res.cookie("refreshToken", refreshToken, cookieOptions )
         res.cookie("accessToken", accessToken, cookieOptions)
 
@@ -253,8 +250,6 @@ const getNewRefreshToken = async(req, res)=>{
 }
 
 const refreshAccessToken = async(req, res)=>{
-    // user ki details nikalenge decoded se ( middleware )
-    // user ki cookie  access token 
     const currToken = req.cookies.refreshToken
     try {
         const decoded = jwt.verify(currToken, process.env.JWT_REFRESH_SECRET)
@@ -263,7 +258,7 @@ const refreshAccessToken = async(req, res)=>{
         const user = await User.findById(userId)
 
         if( user.refreshToken !== currToken){
-            console.log("Comparing ", user.refreshAccessToken, currToken)
+            console.log("Comparing ", user.refreshToken, currToken)
             return res.status(400).json({message: "session expired"})
         }
         
@@ -291,9 +286,6 @@ const refreshAccessToken = async(req, res)=>{
 }
 
 const forgotPassword = async(req, res) =>{
-    // forgot -> reset -> change pass
-    // forgotPassword
-   
    const {email } = req.body
    if( !email ) {
         return res.status(400).json({ message: "email is requred"})
@@ -330,9 +322,7 @@ const forgotPassword = async(req, res) =>{
           }
 
           console.log(mailOptions)
-      
           await transporter.sendMail(mailOptions)
-
           res.status(200).json({message: "Password reset link sent"})
 
    } catch (error) {
